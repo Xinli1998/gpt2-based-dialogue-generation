@@ -69,7 +69,7 @@ class Manager():
             gpt2_vae_post = None          
         print("Loading the model...")
         self.fix_seed(self.args.seed)
-        if self.args.vae_fusion == 'encoder_h_concat' or self.args.vae_fusion == 'com_latent_seg':
+        if self.args.model_fusion == 'encoder_h_concat' or self.args.model_fusion == 'com_latent_seg':
             add_cross_attention=True
         else:
             add_cross_attention=False
@@ -94,11 +94,11 @@ class Manager():
             # eos_id = args.eos_id,
             sp1_id = self.args.sp1_id,
             sp2_id = self.args.sp2_id)
-        # if self.args.vae_fusion == 'encoder_h_concat' or self.args.vae_fusion == 'com_latent_seg':
+        # if self.args.model_fusion == 'encoder_h_concat' or self.args.model_fusion == 'com_latent_seg':
         config.add_cross_attention=add_cross_attention
         config.output_attentions=True
 
-        self.model = model_vae(config,gpt_model,with_latent = self.args.with_latent,with_hier = self.args.with_hier,hier_type = self.args.hier_type,vae_fusion= self.args.vae_fusion,vae_type = self.args.vae_type,gpt2_vae_prior = gpt2_vae_prior,gpt2_vae_post = gpt2_vae_post ).to(self.args.device)
+        self.model = model_vae(config,gpt_model,with_latent = self.args.with_latent,with_hier = self.args.with_hier,hier_type = self.args.hier_type,model_fusion= self.args.model_fusion,vae_type = self.args.vae_type,gpt2_vae_prior = gpt2_vae_prior,gpt2_vae_post = gpt2_vae_post ).to(self.args.device)
         print(f"This model type is {self.args.vae_type} with_latent:{self.args.with_latent} with_hier:{self.args.with_hier}")
         # self.args.max_len = min(self.args.max_len, self.model.config.n_ctx)
         ppd = PadCollate(eos_id=self.tokenizer.eos_token_id)
@@ -229,7 +229,7 @@ class Manager():
                         labels = labels,
                         # with_latent= self.args.with_latent
                     )
-                    if self.args.vae_fusion == 'com_latent_seg':
+                    if self.args.model_fusion == 'com_latent_seg':
                         outputs,kl_loss,latent_embeds,hier_embeds,inputs_embeds,boundary = model_output
                     else:
                         outputs,kl_loss,latent_embeds,inputs_embeds ,boundary= model_output
@@ -269,7 +269,7 @@ class Manager():
                             'global_t':global_t
                         }
                       
-                        torch.save(state_dict, f"{self.args.ckpt_dir}/{self.args.special_words}_{self.args.vae_type}_{self.args.vae_fusion}_{self.args.hier_type}_best_half_ckpt_epoch={epoch}_valid_loss={round(self.best_loss, 4)}.ckpt")
+                        torch.save(state_dict, f"{self.args.ckpt_dir}/{self.args.special_words}_{self.args.vae_type}_{self.args.model_fusion}_{self.args.hier_type}_best_half_ckpt_epoch={epoch}_valid_loss={round(self.best_loss, 4)}.ckpt")
                         print("*"*10 + "Current best checkpoint is saved." + "*"*10)
                         print(f"{self.args.ckpt_dir}/best_half_ckpt_epoch={epoch}_valid_loss={round(self.best_loss, 4)}.ckpt")
                 #     pdb.set_trace()
@@ -297,7 +297,7 @@ class Manager():
                 'epoch': self.last_epoch,
                 'global_t':global_t
             }
-            torch.save(state_dict, f'{self.args.ckpt_dir}/{self.args.special_words}_{self.args.vae_type}_{self.args.vae_fusion}_{self.args.hier_type}_best_ckpt_epoch={epoch}_valid_loss={round(valid_loss, 4)}.ckpt')
+            torch.save(state_dict, f'{self.args.ckpt_dir}/{self.args.special_words}_{self.args.vae_type}_{self.args.model_fusion}_{self.args.hier_type}_best_ckpt_epoch={epoch}_valid_loss={round(valid_loss, 4)}.ckpt')
             print(f"{self.args.ckpt_dir}/ckpt_epoch={epoch}_valid_loss={round(valid_loss, 4)}.ckpt")
 
             if valid_loss < self.best_loss:
@@ -307,7 +307,7 @@ class Manager():
                               
             print(f"Best valid loss: {self.best_loss}")
             print(f"Valid loss: {valid_loss} || Valid perplexity: {valid_ppl}")
-            np.save(f'hier_{self.args.vae_type}_{self.args.vae_fusion}_train_loss_list_epoch={epoch}_valid_loss={round(valid_loss, 4)}.npy',np.array(train_loss_list))
+            np.save(f'hier_{self.args.vae_type}_{self.args.model_fusion}_train_loss_list_epoch={epoch}_valid_loss={round(valid_loss, 4)}.npy',np.array(train_loss_list))
             self.test(global_t)
               
         print("Training finished!")
@@ -331,7 +331,7 @@ class Manager():
                     labels = labels,
                     # with_latent = self.args.with_latent
                     )
-                if self.args.vae_fusion == 'com_latent_seg':
+                if self.args.model_fusion == 'com_latent_seg':
                     outputs,kl_loss,latent_embeds,hier_embeds,inputs_embeds,boundary = model_output
                 else:
                     outputs,kl_loss,latent_embeds,inputs_embeds ,boundary= model_output
@@ -435,29 +435,29 @@ class Manager():
             # print(latent_inp_embeds.shape)
             res_em = self.model.transformer.transformer.wte(torch_res_ids) + self.model.transformer.transformer.wte(torch_res_type_ids)
             # print(res_em.shape,res_em)
-            if self.args.vae_fusion == 'proj':
+            if self.args.model_fusion == 'proj':
                 inputs_embeds = torch.cat([latent_inp_embeds,res_em+latent_embeds],1)
                 output = self.model.transformer(
                     inputs_embeds = inputs_embeds
                     )  # (1, vocab_size)
             else:
                 inputs_embeds = torch.cat([latent_inp_embeds,res_em],1)
-                if self.args.vae_fusion == 'concat':
+                if self.args.model_fusion == 'concat':
                     output = self.model.transformer(
                         inputs_embeds = inputs_embeds
                         )  # (1, vocab_size)
-                elif self.args.vae_fusion == 'layer_concat':
+                elif self.args.model_fusion == 'layer_concat':
                     # pdb.set_trace()
                     output = self.model.transformer(
                         inputs_embeds = inputs_embeds,
                         past_key_values = latent_embeds,
                         )  # (1, vocab_size) 
-                elif self.args.vae_fusion == 'encoder_h_concat':
+                elif self.args.model_fusion == 'encoder_h_concat':
                     output = self.model.transformer(
                         inputs_embeds = inputs_embeds,
                         encoder_hidden_states = latent_embeds
                         )  # (1, vocab_size)       
-                elif self.args.vae_fusion == 'com_latent_seg':
+                elif self.args.model_fusion == 'com_latent_seg':
                     output = self.model.transformer(
                         inputs_embeds = inputs_embeds,
                         past_key_values = latent_embeds,
@@ -604,11 +604,11 @@ class Manager():
         p1.set_yticks([])
         s1 = p1.get_figure()
         
-        s1.savefig(f'heatmap_turn/dot_seg_{self.args.special_words}_{ind}_{self.args.vae_fusion}_{self.args.hier_type}.jpg',dpi=300,bbox_inches='tight')
+        s1.savefig(f'heatmap_turn/dot_seg_{self.args.special_words}_{ind}_{self.args.model_fusion}_{self.args.hier_type}.jpg',dpi=300,bbox_inches='tight')
         plt.show()
         
         # pdb.set_trace()
-        if self.args.vae_fusion == 'encoder_h_concat' or self.args.vae_fusion == 'com_latent_seg':
+        if self.args.model_fusion == 'encoder_h_concat' or self.args.model_fusion == 'com_latent_seg':
             # if self.args.hier_type == 'jra_seg':
             if self.args.hier_type == 'block_seg_aggregate':
                 attention = output.cross_attentions[-1][0][:,-len(output_id):,:].mean(dim=0).mean(dim=-1).cpu()
@@ -629,7 +629,7 @@ class Manager():
             plt.xticks(rotation=360,fontsize=8)
             p1.set_yticks([])
             s1 = p1.get_figure()
-            s1.savefig(f'heatmap_turn/seg_{self.args.special_words}_{ind}_{self.args.vae_fusion}_{self.args.hier_type}.jpg',dpi=300,bbox_inches='tight')
+            s1.savefig(f'heatmap_turn/seg_{self.args.special_words}_{ind}_{self.args.model_fusion}_{self.args.hier_type}.jpg',dpi=300,bbox_inches='tight')
     
             plt.show()
         
@@ -640,7 +640,7 @@ class Manager():
             plt.xticks(rotation=360,fontsize=8)
             p1.set_yticks([])
             s1 = p1.get_figure()
-            s1.savefig(f'heatmap_turn/seg_{self.args.special_words}_{ind}_{self.args.vae_fusion}_{self.args.hier_type}.jpg',dpi=300,bbox_inches='tight')
+            s1.savefig(f'heatmap_turn/seg_{self.args.special_words}_{ind}_{self.args.model_fusion}_{self.args.hier_type}.jpg',dpi=300,bbox_inches='tight')
             plt.show()
     
     def standardization(self,data):
@@ -650,7 +650,7 @@ class Manager():
     def simi(self,output,embeds,output_id,segments,latents = None):
         # pdb.set_trace()
         # try:
-            if self.args.vae_fusion == 'com_latent_seg' or  self.args.vae_fusion == 'encoder_h_concat':
+            if self.args.model_fusion == 'com_latent_seg' or  self.args.model_fusion == 'encoder_h_concat':
                 # pdb.set_trace()
                 b,nh,s,hd =output.past_key_values[-1][0].size()
                 latent = output.past_key_values[-1][0].reshape(b,s,-1)[:,0,:]
@@ -682,7 +682,7 @@ class Manager():
                 if isinstance(att1, torch.Tensor):
                     att1 = 0
                 
-            elif self.args.vae_fusion == 'layer_concat':
+            elif self.args.model_fusion == 'layer_concat':
                 
                 b,nh,s,hd =output.past_key_values[-1][0].size()
                 latent = output.past_key_values[-1][0].reshape(b,s,-1)[:,0,:]
@@ -779,7 +779,7 @@ class Manager():
                         # from_prior = True
                         # with_latent = self.args.with_latent,
                     )
-                    if self.args.vae_fusion == 'com_latent_seg':
+                    if self.args.model_fusion == 'com_latent_seg':
                         outputs,kl_loss,latent_embeds,hier_embeds,inputs_embeds,boundary,latents,segments= model_output
                     else:
                         outputs,kl_loss,latent_embeds,inputs_embeds ,boundary,latents,segments= model_output
@@ -810,7 +810,7 @@ class Manager():
                     num_turn = int(sum(input_clone.eq(-100).squeeze()))
     
     
-                    if self.args.vae_fusion == 'com_latent_seg':
+                    if self.args.model_fusion == 'com_latent_seg':
                         outputs ,kl_loss,latent_embeds,hier_embeds,inputs_embeds ,boundary,latents,segments= self.model(
                             input_id,
                             token_type_id,
@@ -898,7 +898,7 @@ class Manager():
                     # from_prior = True
                     # with_latent = self.args.with_latent,
                 )
-                if self.args.vae_fusion == 'com_latent_seg':
+                if self.args.model_fusion == 'com_latent_seg':
                     outputs,kl_loss,latent_embeds,hier_embeds,inputs_embeds ,boundary= model_output
                 else:
                     outputs,kl_loss,latent_embeds,inputs_embeds,boundary = model_output
@@ -926,7 +926,7 @@ class Manager():
                 # pdb.set_trace()
                 label = labels[:,index:]
 
-                if self.args.vae_fusion == 'com_latent_seg':
+                if self.args.model_fusion == 'com_latent_seg':
                     outputs ,kl_loss,latent_embeds,hier_embeds,inputs_embeds,boundary = self.model(
                         input_id,
                         token_type_id,
@@ -1083,7 +1083,7 @@ class Manager():
                     # from_prior = True
                     # with_latent = self.args.with_latent,
                 )
-                if self.args.vae_fusion == 'com_latent_seg':
+                if self.args.model_fusion == 'com_latent_seg':
                     outputs,kl_loss,latent_embeds,hier_embeds,inputs_embeds,boundary,latents,segments= model_output
                 else:
                     outputs,kl_loss,latent_embeds,inputs_embeds,boundary,latents,segments= model_output
@@ -1112,7 +1112,7 @@ class Manager():
                 num_turn = int(sum(input_clone.eq(-100).squeeze()))
 		num_t[num_turn] = num_t.get(num_turn,0)+1
 
-                if self.args.vae_fusion == 'com_latent_seg':
+                if self.args.model_fusion == 'com_latent_seg':
                     outputs ,kl_loss,latent_embeds,embeds,inputs_embeds,boundary,latents,segments= self.model(
                         input_id,
                         token_type_id,
@@ -1125,7 +1125,7 @@ class Manager():
                         from_prior = True
                     )
                     hier_embeds = None
-                if self.args.vae_fusion == 'layer_concat':
+                if self.args.model_fusion == 'layer_concat':
                     latent_embeds = outputs.past_key_values
                     
                 output_id ,output= self.nucleus_sampling(input_id, token_type_id, last_type,latent_embeds,inputs_embeds,hier_embeds=hier_embeds)
@@ -1239,7 +1239,7 @@ class Manager():
             # pdb.set_trace()
             # accuracy_stats = dict(sorted(accuracy_stats.items(),key = lambda x:x[0]))
             print(accuracy_stats)
-            np.save(f'acc_{self.args.special_words}_{self.args.vae_type}_{self.args.vae_fusion}_{self.args.hier_type}.npy', accuracy_stats)
+            np.save(f'acc_{self.args.special_words}_{self.args.vae_type}_{self.args.model_fusion}_{self.args.hier_type}.npy', accuracy_stats)
             # for index, (key,y) in enumerate(accuracy_stats.items()):
             #     y = dict(sorted(y.items(),key = lambda x:x[0]))
             #     if index== len(accuracy_stats)-2:
@@ -1254,7 +1254,7 @@ class Manager():
             # plt.xticks(ticks, accuracy_stats["blue4"].keys())
             # plt.xlabel('Length of Context Turns')
             # plt.legend()
-            # plt.savefig(f'length_{self.args.special_words}_{self.args.vae_type}_{self.args.vae_fusion}_{self.args.hier_type}.jpg',dpi=600)
+            # plt.savefig(f'length_{self.args.special_words}_{self.args.vae_type}_{self.args.model_fusion}_{self.args.hier_type}.jpg',dpi=600)
             # plt.show()
         self.model.train()
         
@@ -1270,7 +1270,7 @@ if __name__=='__main__':
     
     parser.add_argument('--vae_type', type=str , default = 'avg_attn',required = True)
     parser.add_argument('--hier_type', type=str , default = '',required = True)
-    parser.add_argument('--vae_fusion', type=str , default = 'proj',required = True)
+    parser.add_argument('--model_fusion', type=str , default = 'encoder_h_concat')
     parser.add_argument('--special_words', type=str , default = 're_label')
     parser.add_argument('--use_old', action = 'store_true')
     parser.add_argument('--with_latent', action = 'store_true')
