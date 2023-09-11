@@ -35,7 +35,6 @@ python3 main_model.py --mode train \
 --test_prefix 'valid_daily_dialog' \
 --valid_prefix 'valid_daily_dialog' \
 --train_prefix 'train_daily_dialog' \
---ckpt_name 'BEST_PC_allturns_avg_attn_encoder_h_concat_self_seg_best_ckpt_epoch=15_valid_loss=1.7599'\
 --max_turns 35
 ```
 
