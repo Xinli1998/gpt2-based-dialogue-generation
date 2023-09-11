@@ -40,6 +40,7 @@ python3 main_model.py --mode train \
 ```
 
 There are different options for those parameters specified in []:
+
 hier_type [token_seg / block_token_seg / self_seg / last_turn_seg / block_seg_aggregate / turn]
 model_fusion [proj / concat / layer_concat / encoder_h_concat / com_latent_seg] where the last one refers to the combination of VAE and Hierarchical models.
 train_prefix [train_daily_dialog / train_persona_chat] 
