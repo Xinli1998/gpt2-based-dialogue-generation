@@ -248,11 +248,11 @@ class PoswiseFeedForwardNet(nn.Module):
         return self.layer_norm(output + residual)
         
 class model_vae(GPT2LMHeadModel):
-    def __init__(self, config , gpt2_model,with_latent = False,with_hier = False,hier_type = None, vae_fusion = 'proj',vae_type = None,gpt2_vae_prior=None,gpt2_vae_post=None):
+    def __init__(self, config , gpt2_model,with_latent = False,with_hier = False,hier_type = None, model_fusion = 'proj',vae_type = None,gpt2_vae_prior=None,gpt2_vae_post=None):
         super(GPT2LMHeadModel, self).__init__(config)
         self.transformer = gpt2_model
         self.vae_type = vae_type
-        self.vae_fusion = vae_fusion
+        self.model_fusion = model_fusion
         self.with_latent = with_latent
         self.hier_type = hier_type
         self.config = config
@@ -314,7 +314,7 @@ class model_vae(GPT2LMHeadModel):
 
             
         # self.drop = nn.Dropout(config.embd_pdrop)
-        if self.vae_fusion == 'layer_concat' or self.vae_fusion == 'com_latent_seg':
+        if self.model_fusion == 'layer_concat' or self.model_fusion == 'com_latent_seg':
             self.c_z = Conv1D(config.n_embd * 2, config.n_embd)
             self.latent_proj = nn.Linear(config.n_embd , config.n_layer *config.n_embd)
             self.latent_norm3 = nn.LayerNorm(config.n_layer *config.n_embd, eps=config.layer_norm_epsilon)
@@ -340,7 +340,7 @@ class model_vae(GPT2LMHeadModel):
             # self.feed2 = PoswiseFeedForwardNet(config)
             self.ln_1 = nn.LayerNorm(config.n_embd, eps=config.layer_norm_epsilon)
             # self.ln_2 = nn.LayerNorm(config.n_embd, eps=config.layer_norm_epsilon)
-            if self.hier_type == 'jra_seg':
+            if self.hier_type == 'last_turn_seg':
                 self.anchor_attn = MultiheadAttention(config)
             elif self.hier_type == 'block_seg_aggregate':
                 self.aggregate = nn.GRU(input_size=config.n_embd, hidden_size=config.n_embd, batch_first=True,bidirectional = True)
@@ -551,7 +551,7 @@ class model_vae(GPT2LMHeadModel):
         if self.hier_type == 'block_seg_inter':
             #interact
             output = self.inter_attn(segments,inputs_em,inputs_em)
-        elif self.hier_type == 'block_seg':
+        elif self.hier_type == 'block_seg_1':
             output = self.inter_attn(segments ,segments,segments)
         elif self.hier_type == 'block_seg_aggregate':
             output = self.aggregate(segments)[1].view(1,1,-1)
@@ -802,22 +802,22 @@ class model_vae(GPT2LMHeadModel):
                 anchor_type = token_type_ids[0][-1].cpu()
             # pdb.set_trace()
             index_anchor = np.argwhere(input_ids.cpu() == anchor_type)[1][-1]
-            if self.hier_type == 'sep_seg':
+            if self.hier_type == 'block_token_seg':
                 latent_embeds,boundary,segments = self.hie_layer_sep(input_ids ,index, inputs_embeds)
-            elif self.hier_type == 'all_seg':
+            elif self.hier_type == 'token_seg':
                 latent_embeds ,boundary,segments= self.hie_layer(input_ids ,index, inputs_embeds)
             elif self.hier_type == 'self_seg':
                 latent_embeds ,boundary,segments= self.hie_layer_selfseg(input_ids ,index, inputs_embeds)
-            elif self.hier_type == 'jra_seg':
+            elif self.hier_type == 'last_turn_seg':
                 latent_embeds,boundary,segments= self.hie_layer_JRA(input_ids ,index,index_anchor, inputs_embeds)
-            elif self.hier_type in ['block_seg_inter','block_seg','block_seg_aggregate']:
+            elif self.hier_type in ['block_seg_inter','block_seg_1','block_seg_aggregate']:
                 # pdb.set_trace()
                 latent_embeds ,boundary,segments= self.hie_layer_blockseg(input_ids ,index, inputs_embeds)
             elif self.hier_type == 'turn':
                 latent_embeds,boundary ,segments = self.hier_layer_turn(input_ids ,index, inputs_embeds)
                 
             # inputs_embeds = inputs_embeds + hie_embeds
-            if self.vae_fusion == 'com_latent_seg':
+            if self.model_fusion == 'com_latent_seg':
                 hier_embeds = latent_embeds
             
         # pdb.set_trace()
@@ -891,13 +891,13 @@ class model_vae(GPT2LMHeadModel):
         
         latent_embeds = self.latent_proj(latent_embeds)
         latent_embeds = self.latent_norm3(latent_embeds)
-        if self.vae_fusion == 'proj':
+        if self.model_fusion == 'proj':
             inputs_embeds = inputs_embeds + latent_embeds
             outputs = self.transformer(
                 labels = labels,
                 inputs_embeds = inputs_embeds
                 )
-        elif self.vae_fusion == 'concat':
+        elif self.model_fusion == 'concat':
             # pdb.set_trace()
             
             inputs_embeds = torch.concat([latent_embeds,inputs_embeds],1)
@@ -908,7 +908,7 @@ class model_vae(GPT2LMHeadModel):
                 labels = labels,
                 inputs_embeds = inputs_embeds
                 )
-        elif self.vae_fusion == 'layer_concat':
+        elif self.model_fusion == 'layer_concat':
             # pdb.set_trace()
             present = ()
             latent_embeds = latent_embeds.split(self.embed_dim,-1) #n,seq,768
@@ -927,7 +927,7 @@ class model_vae(GPT2LMHeadModel):
                 )
             # print(present)
             return outputs,kld,present,inputs_embeds,boundary,latents,segments
-        elif self.vae_fusion == 'encoder_h_concat':
+        elif self.model_fusion == 'encoder_h_concat':
             # pdb.set_trace()
             outputs = self.transformer(
                 labels = labels,
@@ -936,7 +936,7 @@ class model_vae(GPT2LMHeadModel):
                 # is_cross_attention = True
                 )
             # pdb.set_trace()
-        elif self.vae_fusion == 'com_latent_seg':
+        elif self.model_fusion == 'com_latent_seg':
             present = ()
             latents = latent_embeds
             latent_embeds = latent_embeds.split(self.embed_dim,-1) #n,seq,768
