@@ -1,0 +1,10 @@
+requests
+Flask==0.10.1
+
+torch
+transformers==4.29.2
+datasets==1.16.1
+sentencepiece==0.1.96
+tensorboard==2.7.0
+argparse
+pycocoevalcap
